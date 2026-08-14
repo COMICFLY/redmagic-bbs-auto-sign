@@ -33,7 +33,19 @@ redmagic-auto-sign/
   .env.example
   .github/workflows/redmagic-auto-sign.yml
   .github/workflows/redmagic-box.yml
+  .github/workflows/release.yml
 ```
+
+## 下载发行版
+
+在仓库的 [Releases](https://github.com/COMICFLY/redmagic-bbs-auto-sign/releases) 页面下载对应文件，运行时不需要另外安装 Python：
+
+| 文件 | 适用环境 |
+| --- | --- |
+| `redmagic-auto-sign-windows-x64.zip` | 64 位 Windows，解压后运行 `.exe` |
+| `redmagic-auto-sign-linux-x64.tar.gz` | 64 位 GNU/Linux（glibc），解压后运行 `redmagic-auto-sign` |
+
+每个压缩包都附带 `.sha256` 校验文件。Linux 如果丢失执行权限，先运行 `chmod +x redmagic-auto-sign`。ARM、Alpine Linux 等环境请直接使用 Python 脚本。
 
 ## GitHub Actions 配置
 
