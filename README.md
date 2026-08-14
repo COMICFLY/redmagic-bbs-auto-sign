@@ -9,7 +9,7 @@
 - 宝箱领取：`points/home/openbox`
 - 支持单账号 token、多账号 token、JSON 多账号
 - 支持 GitHub Actions 定时运行
-- 宝箱工作流每 10 分钟检查一次，到时间才领取
+- 宝箱工作流每 30 分钟检查一次，到时间才领取
 - 支持 PushPlus、Server 酱、Bark、Telegram、自定义 Webhook 推送
 
 ## 文件结构
@@ -86,7 +86,7 @@ Server 酱的 Secret 只填写 SendKey，不要填写完整 API 地址。`SCT` �
 
 宝箱在领取成功后约 4 小时刷新。GitHub Actions 的 cron 可能会延迟几分钟启动，如果严格每 4 小时跑一次，可能刚好早于 `nextOpenTime` 执行，然后错过一轮。
 
-仓库包含独立宝箱工作流 `.github/workflows/redmagic-box.yml`，从北京时间 00:00 开始，每 10 分钟检查一次：
+仓库包含独立宝箱工作流 `.github/workflows/redmagic-box.yml`，每 30 分钟检查一次：
 
 ```bash
 python redmagic_auto_sign.py --box-only

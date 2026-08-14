@@ -3,7 +3,7 @@ name: RedMagic Box
 on:
   workflow_dispatch:
   schedule:
-    - cron: "*/10 * * * *"
+    - cron: "20,50 * * * *"
 
 concurrency:
   group: redmagic-box
