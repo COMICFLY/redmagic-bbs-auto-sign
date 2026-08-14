@@ -121,25 +121,66 @@ python redmagic_auto_sign.py --box-only
 
 ## 本地运行
 
-PowerShell 示例：
+程序只读取当前系统或终端会话中的环境变量，不会自动加载 `.env` 文件。以下示例使用单账号变量 `REDMAGIC_ACCESS_TOKEN`；多账号时请改用前文的 `REDMAGIC_ACCESS_TOKENS`。
+
+### Windows 可执行文件
+
+从 [Releases](https://github.com/COMICFLY/redmagic-bbs-auto-sign/releases) 下载并解压 `redmagic-auto-sign-windows-x64.zip`，然后在解压目录打开 PowerShell：
 
 ```powershell
-$env:REDMAGIC_ACCESS_TOKENS="your-token"
+$env:REDMAGIC_ACCESS_TOKEN="your-token"
+.\redmagic-auto-sign.exe
+```
+
+发行包未进行代码签名。如 Windows 提示未知发布者，请先使用发行页提供的 `.sha256` 文件核对下载内容，再决定是否运行。
+
+### Linux 可执行文件
+
+下载 `redmagic-auto-sign-linux-x64.tar.gz` 及其 `.sha256` 文件后执行：
+
+```bash
+sha256sum -c redmagic-auto-sign-linux-x64.tar.gz.sha256
+tar -xzf redmagic-auto-sign-linux-x64.tar.gz
+chmod +x redmagic-auto-sign
+export REDMAGIC_ACCESS_TOKEN="your-token"
+./redmagic-auto-sign
+```
+
+该发行包适用于 x64 glibc Linux。ARM、Alpine Linux 等环境请使用源码运行。
+
+### Python 源码
+
+建议使用 Python 3.12。项目运行时仅使用 Python 标准库，无需安装额外依赖。
+
+Windows PowerShell：
+
+```powershell
+$env:REDMAGIC_ACCESS_TOKEN="your-token"
 python .\redmagic_auto_sign.py
 ```
 
-只跑宝箱：
+Linux：
 
-```powershell
-$env:REDMAGIC_ACCESS_TOKENS="your-token"
-python .\redmagic_auto_sign.py --box-only
+```bash
+export REDMAGIC_ACCESS_TOKEN="your-token"
+python3 redmagic_auto_sign.py
 ```
 
-只验证配置、不执行接口任务：
+### 常用参数
+
+可执行文件和 Python 源码支持相同参数：
+
+| 参数 | 作用 |
+| --- | --- |
+| `--box-only` | 仅检查并领取宝箱 |
+| `--dry-run` | 仅检查配置，不发起签到、宝箱或转盘请求 |
+| `--no-push` | 本次运行不发送推送 |
+
+例如，在 Windows 中仅检查宝箱：
 
 ```powershell
-$env:REDMAGIC_ACCESS_TOKENS="your-token"
-python .\redmagic_auto_sign.py --dry-run
+$env:REDMAGIC_ACCESS_TOKEN="your-token"
+.\redmagic-auto-sign.exe --box-only
 ```
 
 ## 注意
