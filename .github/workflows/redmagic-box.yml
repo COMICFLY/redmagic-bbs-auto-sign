@@ -1,0 +1,44 @@
+name: RedMagic Box
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "20,50 * * * *"
+
+concurrency:
+  group: redmagic-box
+  cancel-in-progress: true
+
+jobs:
+  redmagic-box:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      TZ: Asia/Shanghai
+      REDMAGIC_ACCESS_TOKEN: ${{ secrets.REDMAGIC_ACCESS_TOKEN }}
+      REDMAGIC_ACCESS_TOKENS: ${{ secrets.REDMAGIC_ACCESS_TOKENS }}
+      REDMAGIC_ACCOUNTS: ${{ secrets.REDMAGIC_ACCOUNTS }}
+      REDMAGIC_BOX_ONLY: "true"
+      REDMAGIC_BOX_PUSH_ONLY_OPENED: ${{ vars.REDMAGIC_BOX_PUSH_ONLY_OPENED || 'true' }}
+      PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      PUSH_PLUS_TOKEN: ${{ secrets.PUSH_PLUS_TOKEN }}
+      SCT_KEY: ${{ secrets.SCT_KEY }}
+      SERVERCHAN_SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
+      BARK_KEY: ${{ secrets.BARK_KEY }}
+      BARK_URL: ${{ secrets.BARK_URL }}
+      TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+      TG_USER_ID: ${{ secrets.TG_USER_ID }}
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      REDMAGIC_WEBHOOK_URL: ${{ secrets.REDMAGIC_WEBHOOK_URL }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run RedMagic box
+        run: python redmagic_auto_sign.py --box-only
