@@ -121,4 +121,4 @@ python .\redmagic_auto_sign.py --dry-run
 
 - 不要把 token 提交到仓库代码里，只放 GitHub Secrets。
 - 脚本不接收手机号、密码、短信验证码、OAuth code 等登录信息。
-- GitHub Actions 的 cron 使用 UTC。主签到配置 `10 0,8,16 * * *` 约等于北京时间 08:10、16:10、次日 00:10。
+- GitHub Actions 的 cron 使用 UTC。主签到配置 `0 16 * * *`，对应北京时间每天 00:00，签到和转盘会在同一次任务中完成。
