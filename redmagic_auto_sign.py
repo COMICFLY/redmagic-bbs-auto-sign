@@ -29,6 +29,10 @@ DEFAULT_H5_UA = (
     "AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 "
     "Chrome/150.0.7871.181 Mobile Safari/537.36/zealer/5.2.5"
 )
+DEFAULT_PUSH_UA = (
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/150.0.0.0 Safari/537.36"
+)
 BOUNDARY_CHARS = string.ascii_letters + string.digits
 
 
@@ -484,14 +488,20 @@ def send_notification(session: HttpClient, title: str, content: str) -> List[str
 
     serverchan_key = env("SCT_KEY") or env("SERVERCHAN_SENDKEY")
     if serverchan_key:
-        url = serverchan_url(serverchan_key)
         try:
-            status_code, _ = session.post_form(
+            url = serverchan_url(serverchan_key)
+            status_code, response_text = session.post_form(
                 url,
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "User-Agent": env("REDMAGIC_PUSH_UA", DEFAULT_PUSH_UA),
+                },
                 data={"title": title, "desp": content},
             )
-            results.append(f"ServerChan: HTTP {status_code}")
+            results.append(
+                f"ServerChan: {format_push_response(status_code, response_text, serverchan_key)}"
+            )
         except Exception as exc:  # noqa: BLE001
             results.append(f"ServerChan: {exc}")
 
@@ -540,10 +550,45 @@ def send_notification(session: HttpClient, title: str, content: str) -> List[str
 
 
 def serverchan_url(sendkey: str) -> str:
+    if "://" in sendkey or "/" in sendkey:
+        raise RedMagicError("ServerChan SendKey must contain the key only, not the API URL")
     match = re.match(r"^sctp(\d+)t", sendkey, re.IGNORECASE)
+    if sendkey.lower().startswith("sctp") and not match:
+        raise RedMagicError("Invalid ServerChan3 SendKey format")
     if match:
         return f"https://{match.group(1)}.push.ft07.com/send/{sendkey}.send"
     return f"https://sctapi.ftqq.com/{sendkey}.send"
+
+
+def format_push_response(status_code: int, text: str, secret: str = "") -> str:
+    details: List[str] = []
+    try:
+        payload = json.loads(text)
+    except (TypeError, ValueError):
+        snippet = re.sub(r"\s+", " ", text or "").strip()[:200]
+        if snippet:
+            details.append(snippet)
+    else:
+        if isinstance(payload, dict):
+            if payload.get("code") is not None:
+                details.append(f"code {payload['code']}")
+            message = next(
+                (
+                    str(payload[key]).strip()
+                    for key in ("info", "message", "error", "msg")
+                    if payload.get(key) not in (None, "")
+                ),
+                "",
+            )
+            if message:
+                details.append(message)
+
+    result = f"HTTP {status_code}"
+    if details:
+        result += ", " + ", ".join(details)
+    if secret:
+        result = result.replace(secret, "***").replace(quote(secret, safe=""), "***")
+    return result
 
 
 def run_daily(client: RedMagicClient, accounts: List[Account], dry_run: bool) -> Tuple[str, bool]:

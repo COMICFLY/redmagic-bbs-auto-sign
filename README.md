@@ -68,6 +68,8 @@ redmagic-auto-sign/
 | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` | Telegram |
 | `REDMAGIC_WEBHOOK_URL` | 自定义 Webhook，POST JSON |
 
+Server 酱的 Secret 只填写 SendKey，不要填写完整 API 地址。`SCT` 开头的 key 使用 Turbo，`sctp` 开头的 key 使用 Server 酱³，脚本会自动选择对应接口。
+
 ## 可选变量
 
 这些放在 `Settings` -> `Secrets and variables` -> `Actions` -> `Variables` 更合适：
