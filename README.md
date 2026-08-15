@@ -19,7 +19,7 @@
 
 - 每日签到/状态查询：`points/home/index`
 - 转盘抽奖：`points/prize/launch`，10 次，间隔 1.5 秒
-- 宝箱领取：`points/home/openbox`
+- 宝箱领取：`points/home/openbox` 后使用响应的 `energyId` 调用 `points/home/havingenergy` 确认到账
 - 支持单账号 token、多账号 token、JSON 多账号
 - 支持 GitHub Actions 定时运行
 - 宝箱工作流每 30 分钟检查一次，到时间才领取
@@ -117,7 +117,7 @@ Server 酱的 Secret 只填写 SendKey，不要填写完整 API 地址。`SCT` �
 python redmagic_auto_sign.py --box-only
 ```
 
-这个模式会先查 `nextOpenTime` / `boxWaitingOpen`，只有可领取时才调用 `points/home/openbox`。`REDMAGIC_BOX_PUSH_ONLY_OPENED=true` 时，没领到宝箱不会推送；如果执行出错，仍会推送错误信息。
+这个模式会先查 `nextOpenTime` / `boxWaitingOpen`，只有可领取时才调用 `points/home/openbox`，再使用响应中的 `energyId` 调用 `points/home/havingenergy` 确认领取。`REDMAGIC_BOX_PUSH_ONLY_OPENED=true` 时，没有成功确认领取不会推送；如果开箱或确认领取出错，仍会推送错误信息。
 
 ## 本地运行
 

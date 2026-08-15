@@ -333,6 +333,15 @@ class RedMagicClient:
             multipart=True,
         )
 
+    def claim_energy(self, token: str, energy_id: str) -> Dict[str, Any]:
+        return post_form(
+            self.session,
+            f"{BBS_API}/points/home/havingenergy",
+            bbs_headers(token),
+            {"energyId": energy_id, "v": now_ms()},
+            multipart=True,
+        )
+
     def launch_prize(self, token: str) -> Dict[str, Any]:
         return post_form(
             self.session,
@@ -390,6 +399,30 @@ def should_open_box(home_payload: Dict[str, Any]) -> Tuple[bool, str]:
         return False, f"unexpected nextOpenTime={next_open!r}"
 
 
+def open_and_claim_box(client: RedMagicClient, token: str) -> Tuple[str, bool]:
+    box = client.open_box(token)
+    if not ok_status(box):
+        return f"Box: failed, {payload_msg(box)}", False
+
+    data = box.get("data") if isinstance(box.get("data"), dict) else {}
+    reward = f"+{data.get('energy', '?')} energy"
+    next_open = data.get("nextOpenTime", "-")
+    energy_id = data.get("energyId")
+    if energy_id in (None, ""):
+        return (
+            f"Box: opened, {reward}, but claim was not confirmed: "
+            f"openbox returned no energyId, nextOpenTime={next_open}"
+        ), False
+
+    claim = client.claim_energy(token, str(energy_id))
+    if not ok_status(claim):
+        return (
+            f"Box: opened, {reward}, but claim failed: {payload_msg(claim)}, "
+            f"nextOpenTime={next_open}"
+        ), False
+    return f"Box: claimed, {reward}, nextOpenTime={next_open}", True
+
+
 def run_tasks_for_account(client: RedMagicClient, account: Account, dry_run: bool = False) -> List[str]:
     lines = [f"## {account.name}"]
     token = client.access_token_for(account)
@@ -407,14 +440,8 @@ def run_tasks_for_account(client: RedMagicClient, account: Account, dry_run: boo
     if env_bool("REDMAGIC_ENABLE_BOX", True):
         openable, reason = should_open_box(home)
         if openable:
-            box = client.open_box(token)
-            if ok_status(box):
-                data = box.get("data") if isinstance(box.get("data"), dict) else {}
-                lines.append(
-                    f"Box: +{data.get('energy', '?')} energy, nextOpenTime={data.get('nextOpenTime', '-')}"
-                )
-            else:
-                lines.append(f"Box: skipped/failed, {payload_msg(box)}")
+            box_line, _ = open_and_claim_box(client, token)
+            lines.append(box_line)
         else:
             lines.append(f"Box: skipped, {reason}")
 
@@ -453,16 +480,9 @@ def run_box_for_account(client: RedMagicClient, account: Account) -> Tuple[List[
         lines.append(f"Box: skipped, {reason}")
         return lines, False, True
 
-    box = client.open_box(token)
-    if not ok_status(box):
-        lines.append(f"Box: failed, {payload_msg(box)}")
-        return lines, False, False
-
-    data = box.get("data") if isinstance(box.get("data"), dict) else {}
-    lines.append(
-        f"Box: opened, +{data.get('energy', '?')} energy, nextOpenTime={data.get('nextOpenTime', '-')}"
-    )
-    return lines, True, True
+    box_line, claimed = open_and_claim_box(client, token)
+    lines.append(box_line)
+    return lines, claimed, claimed
 
 
 def send_notification(session: HttpClient, title: str, content: str) -> List[str]:
@@ -615,12 +635,12 @@ def run_box_only(client: RedMagicClient, accounts: List[Account]) -> Tuple[str, 
         raise RedMagicError("No account configured. Set REDMAGIC_ACCESS_TOKENS or REDMAGIC_ACCESS_TOKEN.")
     all_lines: List[str] = ["# RedMagic Box"]
     ok = True
-    opened = False
+    claimed = False
     for account in accounts:
         try:
-            lines, account_opened, account_ok = run_box_for_account(client, account)
+            lines, account_claimed, account_ok = run_box_for_account(client, account)
             all_lines.extend(lines)
-            opened = opened or account_opened
+            claimed = claimed or account_claimed
             ok = ok and account_ok
         except Exception as exc:  # noqa: BLE001
             ok = False
@@ -630,9 +650,9 @@ def run_box_only(client: RedMagicClient, accounts: List[Account]) -> Tuple[str, 
                 all_lines.append("```")
                 all_lines.append(traceback.format_exc())
                 all_lines.append("```")
-    if not opened:
-        all_lines.append("No box opened in this run.")
-    return "\n".join(all_lines), ok, opened
+    if not claimed:
+        all_lines.append("No box claimed in this run.")
+    return "\n".join(all_lines), ok, claimed
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -652,11 +672,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     box_only = args.box_only or env_bool("REDMAGIC_BOX_ONLY", False)
     dry_run = args.dry_run or env_bool("REDMAGIC_DRY_RUN", False)
     no_push = args.no_push or env_bool("REDMAGIC_PUSH_DISABLED", False)
-    box_opened = False
+    box_claimed = False
 
     try:
         if box_only:
-            report, ok, box_opened = run_box_only(client, accounts)
+            report, ok, box_claimed = run_box_only(client, accounts)
             title = "RedMagic Box"
         else:
             report, ok = run_daily(client, accounts, dry_run=dry_run)
@@ -671,7 +691,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     print(report)
 
-    if box_only and ok and env_bool("REDMAGIC_BOX_PUSH_ONLY_OPENED", True) and not box_opened:
+    if box_only and ok and env_bool("REDMAGIC_BOX_PUSH_ONLY_OPENED", True) and not box_claimed:
         no_push = True
 
     if not no_push:
