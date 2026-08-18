@@ -17,7 +17,7 @@
 
 ## 功能
 
-- 每日签到/状态查询：`points/home/index`
+- 每日签到：先用 `points/home/index` 查询状态，未签到时调用 `points/home/pointsRegister`，再查询一次确认结果
 - 转盘抽奖：`points/prize/launch`，10 次，间隔 1.5 秒
 - 宝箱领取：`points/home/openbox` 后使用响应的 `energyId` 调用 `points/home/havingenergy` 确认到账
 - 支持单账号 token、多账号 token、JSON 多账号

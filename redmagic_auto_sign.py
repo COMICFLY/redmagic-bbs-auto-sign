@@ -324,6 +324,15 @@ class RedMagicClient:
             multipart=True,
         )
 
+    def sign_in(self, token: str) -> Dict[str, Any]:
+        return post_form(
+            self.session,
+            f"{BBS_API}/points/home/pointsRegister",
+            bbs_headers(token),
+            {"v": now_ms()},
+            multipart=True,
+        )
+
     def open_box(self, token: str) -> Dict[str, Any]:
         return post_form(
             self.session,
@@ -368,18 +377,67 @@ def payload_msg(payload: Dict[str, Any]) -> str:
 def format_home(payload: Dict[str, Any]) -> List[str]:
     data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
     user = data.get("userInfo") if isinstance(data.get("userInfo"), dict) else {}
-    register = data.get("registerData") if isinstance(data.get("registerData"), dict) else {}
     lines = []
     nickname = user.get("nickname") or user.get("uid") or "unknown"
     score = user.get("score")
     energy = user.get("energy")
-    title = register.get("txt") or payload_msg(payload)
     lines.append(f"Home: {nickname} | score={score} | energy={energy}")
-    lines.append(f"Sign: {title}")
     next_open = data.get("nextOpenTime")
     if next_open:
         lines.append(f"Box nextOpenTime={next_open}")
     return lines
+
+
+def registration_data(payload: Dict[str, Any]) -> Dict[str, Any]:
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+    register = data.get("registerData")
+    return register if isinstance(register, dict) else {}
+
+
+def signed_state(payload: Dict[str, Any]) -> Optional[bool]:
+    value = registration_data(payload).get("isRegister")
+    if value in (1, "1", True):
+        return True
+    if value in (0, "0", False):
+        return False
+    return None
+
+
+def ensure_signed(
+    client: RedMagicClient,
+    token: str,
+    home_payload: Dict[str, Any],
+) -> Tuple[List[str], Dict[str, Any], bool]:
+    register = registration_data(home_payload)
+    state = signed_state(home_payload)
+    if state is True:
+        message = register.get("txt") or "already signed"
+        return [f"Sign: already signed, {message}"], home_payload, True
+    if state is None:
+        return [f"Sign: failed, unexpected isRegister={register.get('isRegister')!r}"], home_payload, False
+
+    sign = client.sign_in(token)
+    if not ok_status(sign):
+        return [f"Sign: failed, {payload_msg(sign)}"], home_payload, False
+
+    verified_home = client.home_index(token)
+    if not ok_status(verified_home):
+        return [f"Sign: request succeeded but verification failed, {payload_msg(verified_home)}"], home_payload, False
+    if signed_state(verified_home) is not True:
+        value = registration_data(verified_home).get("isRegister")
+        return [f"Sign: request succeeded but isRegister={value!r}"], verified_home, False
+
+    verified_register = registration_data(verified_home)
+    sign_data = sign.get("data") if isinstance(sign.get("data"), dict) else {}
+    details = []
+    reward = verified_register.get("todayEnergy") or register.get("todayEnergy")
+    if reward not in (None, ""):
+        details.append(f"reward={reward}")
+    continue_days = sign_data.get("continueDays")
+    if continue_days not in (None, ""):
+        details.append(f"continueDays={continue_days}")
+    suffix = ", " + ", ".join(details) if details else ""
+    return [f"Sign: completed{suffix}"], verified_home, True
 
 
 def should_open_box(home_payload: Dict[str, Any]) -> Tuple[bool, str]:
@@ -423,19 +481,25 @@ def open_and_claim_box(client: RedMagicClient, token: str) -> Tuple[str, bool]:
     return f"Box: claimed, {reward}, nextOpenTime={next_open}", True
 
 
-def run_tasks_for_account(client: RedMagicClient, account: Account, dry_run: bool = False) -> List[str]:
+def run_tasks_for_account(
+    client: RedMagicClient,
+    account: Account,
+    dry_run: bool = False,
+) -> Tuple[List[str], bool]:
     lines = [f"## {account.name}"]
     token = client.access_token_for(account)
     lines.append(f"Token: {mask(token)}")
 
     if dry_run:
         lines.append("Dry run: token configured; daily tasks skipped.")
-        return lines
+        return lines, True
 
     home = client.home_index(token)
     if not ok_status(home):
         raise RedMagicError(f"{account.name}: home/index failed: {payload_msg(home)}")
+    sign_lines, home, sign_ok = ensure_signed(client, token, home)
     lines.extend(format_home(home))
+    lines.extend(sign_lines)
 
     if env_bool("REDMAGIC_ENABLE_BOX", True):
         openable, reason = should_open_box(home)
@@ -462,7 +526,7 @@ def run_tasks_for_account(client: RedMagicClient, account: Account, dry_run: boo
             if index != times and delay:
                 time.sleep(delay)
 
-    return lines
+    return lines, sign_ok
 
 
 def run_box_for_account(client: RedMagicClient, account: Account) -> Tuple[List[str], bool, bool]:
@@ -618,7 +682,9 @@ def run_daily(client: RedMagicClient, accounts: List[Account], dry_run: bool) ->
     ok = True
     for account in accounts:
         try:
-            all_lines.extend(run_tasks_for_account(client, account, dry_run=dry_run))
+            lines, account_ok = run_tasks_for_account(client, account, dry_run=dry_run)
+            all_lines.extend(lines)
+            ok = ok and account_ok
         except Exception as exc:  # noqa: BLE001
             ok = False
             all_lines.append(f"## {account.name}")
